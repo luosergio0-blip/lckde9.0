@@ -1,0 +1,2 @@
+# 用 Git LFS 管理大数据库，便于推送到 GitHub（超过 100MB）
+excel_data.db filter=lfs diff=lfs merge=lfs -text

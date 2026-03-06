@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# 本地配置（如有）
+.env
+.env.local
+
+# 大文件不推送到 GitHub（仅本地导入使用）
+*.xlsx
+*.xls
+
+# 数据库文件（完整/小库都不推到 GitHub，由 Render 启动时从远端下载）
+*.db

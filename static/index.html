@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Excel 表格浏览</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <style>
+    :root {
+      --bg: #0f0f12;
+      --surface: #1a1a20;
+      --border: #2a2a32;
+      --text: #e8e8ed;
+      --muted: #8888a0;
+      --accent: #6c8eff;
+      --accent-hover: #8ba3ff;
+      --font-sans: "Source Han Sans SC", "Noto Sans SC", "PingFang SC", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--text); font-family: var(--font-sans); font-size: 14px; }
+    .app { display: flex; flex-direction: column; height: 100vh; }
+    .header {
+      flex-shrink: 0;
+      padding: 12px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .header h1 { margin: 0; font-size: 1.25rem; font-weight: 600; color: var(--text); }
+    .header .search-box { display: flex; gap: 8px; flex: 1; min-width: 200px; max-width: 520px; align-items: flex-start; }
+    .header .search-box textarea {
+      flex: 1;
+      min-height: 36px;
+      max-height: 80px;
+      padding: 8px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.9rem;
+      font-family: inherit;
+      resize: vertical;
+    }
+    .header .search-box textarea::placeholder { color: var(--muted); }
+    .btn {
+      padding: 8px 14px;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      font-family: inherit;
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn:hover { background: var(--accent-hover); }
+    .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn-ghost:hover { background: var(--border); }
+    .sheet-tabs {
+      flex-shrink: 0;
+      display: flex;
+      gap: 2px;
+      padding: 8px 16px 0;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+    }
+    .sheet-tabs .tab {
+      padding: 10px 16px;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      color: var(--muted);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.9rem;
+      white-space: nowrap;
+    }
+    .sheet-tabs .tab:hover { color: var(--text); }
+    .sheet-tabs .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .table-wrap {
+      flex: 1;
+      overflow: auto;
+      padding: 16px;
+    }
+    .sheet-table {
+      border-collapse: collapse;
+      width: max-content;
+      min-width: 100%;
+      background: var(--surface);
+      font-size: 13px;
+    }
+    .sheet-table th, .sheet-table td {
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      text-align: left;
+      white-space: nowrap;
+      max-width: 280px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .sheet-table th {
+      background: var(--bg);
+      color: var(--muted);
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    .sheet-table .col-row-num { width: 52px; text-align: center; color: var(--muted); }
+    .sheet-table tbody tr:hover { background: rgba(108, 142, 255, 0.08); }
+    .sheet-table .cell-formula { font-family: ui-monospace, monospace; color: var(--accent); }
+    .sheet-table .cell-img { color: var(--muted); font-style: italic; }
+    .pagination {
+      flex-shrink: 0;
+      padding: 10px 16px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .pagination span { color: var(--muted); font-size: 0.9rem; }
+    .pagination .btn { padding: 6px 12px; font-size: 0.85rem; }
+    .empty-msg { color: var(--muted); text-align: center; padding: 48px 24px; }
+    .loading { color: var(--muted); padding: 24px; text-align: center; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .container { max-width: 960px; margin: 0 auto; padding: 24px; }
+    .result-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+    .result-item:hover { border-color: var(--accent); }
+    .detail-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+    .detail-card h3 { margin-top: 0; font-size: 1rem; color: var(--muted); }
+    .detail-table { width: 100%; border-collapse: collapse; }
+    .detail-table th, .detail-table td { padding: 6px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+    .detail-table th { color: var(--muted); width: 80px; }
+    .cell-formula { background: rgba(108, 142, 255, 0.1); padding: 4px 8px; border-radius: 4px; }
+    .back-link { color: var(--accent); cursor: pointer; margin-bottom: 12px; display: inline-block; }
+    .back-link:hover { text-decoration: underline; }
+    .add-form label { display: block; margin-bottom: 4px; color: var(--muted); font-size: 0.9rem; }
+    .add-form textarea, .add-form input[type=text] {
+      width: 100%; padding: 10px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); font-family: inherit; margin-bottom: 12px;
+    }
+    .add-form .row { margin-bottom: 14px; }
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="header">
+      <h1>表格浏览</h1>
+      <div class="search-box">
+        <textarea id="searchInput" placeholder="输入关键字搜索，多个可用换行或逗号分隔..." autocomplete="off" rows="1"></textarea>
+        <button type="button" class="btn" id="searchBtn">搜索</button>
+      </div>
+      <button type="button" class="btn btn-ghost" id="btnAdd">添加内容</button>
+      <button type="button" class="btn btn-ghost" id="btnExport">按关键字导出 Excel</button>
+      <div id="accessInfo" style="flex-basis:100%;margin-top:8px;font-size:0.85rem;color:var(--muted);"></div>
+    </header>
+    <div class="sheet-tabs" id="sheetTabs"></div>
+    <div class="table-wrap">
+      <div id="tableArea">
+        <p class="loading" id="tableLoading">加载表格中...</p>
+        <table class="sheet-table" id="sheetTable" style="display:none;"></table>
+      </div>
+    </div>
+    <div class="pagination" id="pagination" style="display:none;">
+      <span id="pageInfo"></span>
+      <button type="button" class="btn btn-ghost" id="btnPrev">上一页</button>
+      <button type="button" class="btn btn-ghost" id="btnNext">下一页</button>
+    </div>
+  </div>
+
+  <div id="searchPanel" class="panel" style="display:none;">
+    <div class="container">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+        <button type="button" class="btn btn-ghost" id="backToTable">← 返回表格</button>
+        <button type="button" class="btn" id="exportSearchResults">导出当前结果到 Excel</button>
+        <span id="searchExportMsg" style="color:var(--muted);font-size:0.9rem;"></span>
+      </div>
+      <div id="searchResults" style="margin-top:16px;"></div>
+    </div>
+  </div>
+
+  <div id="exportPanel" class="panel" style="display:none;">
+    <div class="container">
+      <button type="button" class="btn btn-ghost" id="backFromExport">← 返回表格</button>
+      <div class="add-form" style="margin-top:16px;">
+        <div class="row">
+          <label>输入关键字（每行一个，或用逗号分隔）</label>
+          <textarea id="exportModels" rows="8" placeholder="例如：&#10;货号或描述中的文字&#10;多个关键字每行一个或用逗号分隔"></textarea>
+        </div>
+        <button type="button" class="btn" id="doExportExcel">导出 Excel</button>
+        <span id="exportMsg" style="margin-left:12px;color:var(--muted);"></span>
+      </div>
+    </div>
+  </div>
+
+  <div id="addPanel" class="panel" style="display:none;">
+    <div class="container">
+      <button type="button" class="btn btn-ghost" id="backFromAdd">← 返回表格</button>
+      <form class="add-form" id="addForm" style="margin-top:16px;">
+        <div class="row">
+          <label>所属 Sheet 名称</label>
+          <input type="text" id="addSheet" placeholder="例如：Sheet1" required>
+        </div>
+        <div class="row">
+          <label>列数据（JSON 数组，如 ["列1","列2"]）</label>
+          <textarea id="addColumns" rows="3" placeholder='["第一列", "第二列"]'></textarea>
+        </div>
+        <div class="row">
+          <label>公式文本（可选）</label>
+          <textarea id="addFormula" rows="2" placeholder="公式或说明"></textarea>
+        </div>
+        <button type="submit" class="btn">提交新增</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="detailView" class="panel" style="display:none;">
+    <div class="container">
+      <a class="back-link" id="backFromDetail">← 返回</a>
+      <div id="detailContent"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.mind.js"></script>
+  <script>
+    const API = '';
+    const PAGE_SIZE = 100;
+    let sheets = [];
+    let currentSheet = '';
+    let currentOffset = 0;
+    let totalRows = 0;
+    let lastViewBeforeDetail = 'table';
+    let sheetHeaderLabels = {};
+    let lastSearchResultIds = [];
+
+    function escapeHtml(s) {
+      if (s == null) return '';
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+    function cellDisplayText(val) {
+      if (val == null || val === '') return '';
+      const s = String(val).trim();
+      if (/^_xlfn\.DISPIMG\s*\(/i.test(s) || /^=.*DISPIMG/i.test(s) || /^=.*IMAGE\s*\(/i.test(s) || (s.indexOf('ID_') !== -1 && s.length > 50)) return '[图片]';
+      return s;
+    }
+
+    function showView(name) {
+      document.getElementById('app').style.display = name === 'table' ? 'flex' : 'none';
+      document.getElementById('searchPanel').style.display = name === 'search' ? 'block' : 'none';
+      document.getElementById('addPanel').style.display = name === 'add' ? 'block' : 'none';
+      document.getElementById('exportPanel').style.display = name === 'export' ? 'block' : 'none';
+      document.getElementById('detailView').style.display = name === 'detail' ? 'block' : 'none';
+    }
+
+    let sheetCounts = {};
+    async function loadSheets() {
+      const loading = document.getElementById('tableLoading');
+      try {
+        const res = await fetch(API + '/api/sheets');
+        const data = await res.json().catch(() => ({}));
+        sheets = data.sheets || [];
+        sheetCounts = data.counts || {};
+        const tabs = document.getElementById('sheetTabs');
+        tabs.innerHTML = sheets.map(s => {
+          const n = sheetCounts[s];
+          const label = (n !== undefined ? escapeHtml(s) + ' (' + n + ')' : escapeHtml(s));
+          return '<button type="button" class="tab' + (s === currentSheet ? ' active' : '') + '" data-sheet="' + escapeHtml(s) + '">' + label + '</button>';
+        }).join('');
+        tabs.querySelectorAll('.tab').forEach(btn => {
+          btn.addEventListener('click', () => { currentSheet = btn.dataset.sheet; currentOffset = 0; renderSheetTabs(); loadSheetPage(); });
+        });
+        if (sheets.length && !currentSheet) {
+          const withData = sheets.find(s => (sheetCounts[s] || 0) > 0);
+          currentSheet = withData || sheets[0];
+          loadSheetPage();
+        } else if (sheets.length === 0) {
+          currentSheet = '';
+          loadSheetPage();
+        }
+      } catch (e) {
+        loading.style.display = 'block';
+        loading.innerHTML = '无法连接服务器，请确认已启动：<br><code style="background:var(--surface);padding:6px 10px;border-radius:6px;margin-top:8px;">python -m uvicorn main:app --host 0.0.0.0 --port 8000</code>';
+      }
+      try {
+        const ar = await fetch(API + '/api/access-info');
+        const ad = await ar.json().catch(() => ({}));
+        const el = document.getElementById('accessInfo');
+        if (el && ad.access_url) {
+          el.innerHTML = '其他人可访问：<a href="' + escapeHtml(ad.access_url) + '" target="_blank" rel="noopener" style="color:var(--accent);">' + escapeHtml(ad.access_url) + '</a>' + (ad.tip ? ' <span style="margin-left:8px;">' + escapeHtml(ad.tip) + '</span>' : '');
+        }
+      } catch (_) {}
+    }
+
+    function renderSheetTabs() {
+      document.querySelectorAll('.sheet-tabs .tab').forEach(t => { t.classList.toggle('active', t.dataset.sheet === currentSheet); });
+    }
+
+    async function loadSheetPage() {
+      const loading = document.getElementById('tableLoading');
+      const table = document.getElementById('sheetTable');
+      const pagination = document.getElementById('pagination');
+      if (!currentSheet) {
+        loading.style.display = 'block';
+        loading.innerHTML = '暂无工作表。<br><br>请先导入 Excel：在项目目录打开命令行，执行<br><code style="background:var(--surface);padding:6px 10px;border-radius:6px;margin-top:8px;display:inline-block;">python import_excel.py</code>';
+        table.style.display = 'none';
+        return;
+      }
+      loading.style.display = 'block';
+      loading.textContent = '加载中...';
+      table.style.display = 'none';
+      pagination.style.display = 'none';
+      try {
+        const res = await fetch(API + '/api/sheet/' + encodeURIComponent(currentSheet) + '?offset=' + currentOffset + '&limit=' + PAGE_SIZE + '&order=desc');
+        const data = await res.json().catch(() => ({}));
+        totalRows = data.total || 0;
+        const rows = data.rows || [];
+        loading.style.display = 'none';
+        if (rows.length === 0 && totalRows === 0) {
+          loading.style.display = 'block';
+          loading.innerHTML = '该表暂无数据。<br><br>若刚运行过导入，请<strong>先重启网站服务</strong>（在运行 uvicorn 的窗口按 Ctrl+C 停止，再重新执行 <code style="background:var(--surface);padding:4px 8px;border-radius:4px;">python -m uvicorn main:app --host 0.0.0.0 --port 8000</code>），然后刷新本页。<br><span style="color:var(--muted);font-size:0.9rem;margin-top:8px;display:inline-block;">也可尝试切换上方其他工作表标签。</span>';
+          return;
+        }
+        const maxCols = Math.max(...rows.map(r => (r.column_data || []).length), 1);
+        const headerRow = rows.find(r => r.row_index === 1);
+        if (headerRow && headerRow.column_data) {
+          sheetHeaderLabels[currentSheet] = headerRow.column_data.map(v => (v != null && String(v).trim() !== '') ? String(v).trim() : null);
+        }
+        const headerLabels = sheetHeaderLabels[currentSheet] || (headerRow && headerRow.column_data ? headerRow.column_data : []);
+        let thead = '<thead><tr><th class="col-row-num">行号</th>';
+        for (let i = 0; i < maxCols; i++) {
+          const label = (headerLabels[i] != null && String(headerLabels[i]).trim() !== '') ? String(headerLabels[i]).trim() : ('列' + (i + 1));
+          thead += '<th>' + escapeHtml(label) + '</th>';
+        }
+        thead += '</tr></thead>';
+        let tbody = '<tbody>';
+        rows.forEach(r => {
+          const cols = r.column_data || [];
+          const imgs = r.images || [];
+          tbody += '<tr data-id="' + r.id + '"><td class="col-row-num">' + r.row_index + '</td>';
+          for (let i = 0; i < maxCols; i++) {
+            const cellImg = imgs.find(im => im.col_ref === 'col_' + i);
+            if (cellImg && cellImg.path) {
+              tbody += '<td class="cell-img"><img src="' + escapeHtml(cellImg.path) + '" alt="" style="max-height:52px;max-width:90px;object-fit:contain;vertical-align:middle;"></td>';
+            } else {
+              const v = cols[i];
+              const val = v === null || v === undefined ? '' : String(v);
+              const display = cellDisplayText(val);
+              const isImgPlaceholder = display === '[图片]';
+              tbody += '<td class="' + (isImgPlaceholder ? 'cell-img' : '') + '" title="' + escapeHtml(val) + '">' + escapeHtml(display) + '</td>';
+            }
+          }
+          tbody += '</tr>';
+        });
+        tbody += '</tbody>';
+        table.innerHTML = thead + tbody;
+        table.style.display = 'table';
+        table.querySelectorAll('tbody tr').forEach(tr => {
+          tr.addEventListener('click', () => { lastViewBeforeDetail = 'table'; showDetail(parseInt(tr.dataset.id, 10)); });
+        });
+        pagination.style.display = 'flex';
+        const from = currentOffset + 1;
+        const to = Math.min(currentOffset + PAGE_SIZE, totalRows);
+        document.getElementById('pageInfo').textContent = '第 ' + from + '–' + to + ' 条，共 ' + totalRows + ' 行（表头置顶，其余倒序）';
+        document.getElementById('btnPrev').disabled = currentOffset === 0;
+        document.getElementById('btnNext').disabled = currentOffset + PAGE_SIZE >= totalRows;
+      } catch (e) {
+        loading.style.display = 'block';
+        loading.textContent = '加载失败，请重试';
+      }
+    }
+
+    document.getElementById('btnPrev').addEventListener('click', () => { if (currentOffset > 0) { currentOffset -= PAGE_SIZE; loadSheetPage(); } });
+    document.getElementById('btnNext').addEventListener('click', () => { if (currentOffset + PAGE_SIZE < totalRows) { currentOffset += PAGE_SIZE; loadSheetPage(); } });
+
+    async function doSearch() {
+      const q = document.getElementById('searchInput').value.trim().replace(/\s*[\n,，]\s*/g, '\n').trim();
+      if (!q) return;
+      showView('search');
+      const el = document.getElementById('searchResults');
+      el.innerHTML = '<p class="loading">搜索中...</p>';
+      try {
+        const res = await fetch(API + '/api/search?q=' + encodeURIComponent(q) + '&limit=500');
+        const data = await res.json().catch(() => ({}));
+        if (data.error) { el.innerHTML = '<p class="empty-msg">搜索出错：' + escapeHtml(data.error) + '</p>'; return; }
+        if (!data.results || data.results.length === 0) { lastSearchResultIds = []; el.innerHTML = '<p class="empty-msg">未找到与「' + escapeHtml(q) + '」匹配的结果</p>'; return; }
+        lastSearchResultIds = data.results.map(r => r.id);
+        el.innerHTML = data.results.map(r => `
+          <div class="result-item" data-id="${r.id}">
+            <strong>${escapeHtml(r.sheet_name)}</strong> · 第 ${r.row_index} 行
+            <div style="color:var(--muted);margin-top:4px;">${escapeHtml((r.column_preview || []).join(' | '))}</div>
+          </div>
+        `).join('');
+        el.querySelectorAll('.result-item').forEach(item => {
+          item.addEventListener('click', () => { lastViewBeforeDetail = 'search'; showDetail(parseInt(item.dataset.id, 10)); });
+        });
+      } catch (err) {
+        el.innerHTML = '<p class="empty-msg">搜索失败，请重试</p>';
+      }
+    }
+    document.getElementById('searchBtn').addEventListener('click', doSearch);
+    document.getElementById('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSearch(); } });
+
+    document.getElementById('exportSearchResults').addEventListener('click', async () => {
+      const msg = document.getElementById('searchExportMsg');
+      if (!lastSearchResultIds.length) { msg.textContent = '请先进行搜索'; return; }
+      msg.textContent = '正在导出...';
+      try {
+        const res = await fetch(API + '/api/export-excel-by-ids', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: lastSearchResultIds })
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          const d = err.detail;
+          msg.textContent = Array.isArray(d) ? (d[0]?.msg || d[0]) : (d || res.statusText || '导出失败');
+          return;
+        }
+        const blob = await res.blob();
+        const name = res.headers.get('Content-Disposition')?.match(/filename=(.+)/)?.[1]?.trim() || 'search_results_export.xlsx';
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = name.replace(/^["']|["']$/g, '');
+        a.click();
+        URL.revokeObjectURL(a.href);
+        msg.textContent = '已下载（' + lastSearchResultIds.length + ' 行）';
+      } catch (e) {
+        msg.textContent = '导出失败：' + (e.message || '网络错误');
+      }
+    });
+
+    const detailContentEl = document.getElementById('detailContent');
+    async function showDetail(id) {
+      const res = await fetch(API + '/api/row/' + id);
+      if (!res.ok) return;
+      const row = await res.json();
+      const headerLabels = row.header_labels || [];
+      let colHtml = '';
+      (row.column_data || []).forEach((c, i) => {
+        const val = c === null || c === undefined ? '' : String(c);
+        const display = cellDisplayText(val);
+        const isImg = display === '[图片]';
+        const label = (headerLabels[i] != null && String(headerLabels[i]).trim() !== '') ? String(headerLabels[i]).trim() : ('列' + (i + 1));
+        colHtml += '<tr><th>' + escapeHtml(label) + '</th><td class="' + (isImg ? 'cell-img' : '') + '" title="' + escapeHtml(val) + '">' + escapeHtml(display) + '</td></tr>';
+      });
+      let imgHtml = '';
+      (row.images || []).forEach(img => { imgHtml += '<img src="' + escapeHtml(img.path) + '" alt="" style="max-width:100%;max-height:240px;margin:8px;border:1px solid var(--border);border-radius:8px;">'; });
+      detailContentEl.innerHTML = `
+        <div class="detail-card">
+          <h3>${escapeHtml(row.sheet_name)} · 第 ${row.row_index} 行</h3>
+          <table class="detail-table"><tbody>${colHtml}</tbody></table>
+          ${row.formula_text ? '<p style="margin-top:12px;"><strong>公式</strong><pre class="cell-formula" style="padding:8px;">' + escapeHtml(row.formula_text) + '</pre></p>' : ''}
+          ${imgHtml ? '<div style="margin-top:12px;"><strong>图片</strong><div>' + imgHtml + '</div></div>' : ''}
+        </div>
+      `;
+      showView('detail');
+    }
+
+    document.getElementById('backToTable').addEventListener('click', () => showView('table'));
+    document.getElementById('backFromAdd').addEventListener('click', () => showView('table'));
+    document.getElementById('backFromExport').addEventListener('click', () => showView('table'));
+    document.getElementById('backFromDetail').addEventListener('click', () => showView(lastViewBeforeDetail));
+
+    document.getElementById('btnExport').addEventListener('click', () => showView('export'));
+
+    document.getElementById('doExportExcel').addEventListener('click', async () => {
+      const el = document.getElementById('exportModels');
+      const msg = document.getElementById('exportMsg');
+      const raw = (el.value || '').trim();
+      if (!raw) { msg.textContent = '请先输入至少一个关键字'; return; }
+      msg.textContent = '正在导出...';
+      try {
+        const res = await fetch(API + '/api/export-excel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ models: raw })
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          const d = err.detail;
+          const errStr = Array.isArray(d) ? (d[0]?.msg || d[0] || d.join(' ')) : (d || res.statusText || '导出失败');
+          msg.textContent = typeof errStr === 'string' ? errStr : '导出失败';
+          return;
+        }
+        const blob = await res.blob();
+        const name = res.headers.get('Content-Disposition')?.match(/filename=(.+)/)?.[1]?.trim() || 'export_by_models.xlsx';
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = name.replace(/^["']|["']$/g, '');
+        a.click();
+        URL.revokeObjectURL(a.href);
+        msg.textContent = '已下载';
+      } catch (e) {
+        msg.textContent = '请求失败：' + (e.message || '网络错误');
+      }
+    });
+
+    document.getElementById('btnAdd').addEventListener('click', () => {
+      if (currentSheet) document.getElementById('addSheet').value = currentSheet;
+      showView('add');
+    });
+    document.getElementById('addForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const sheet = document.getElementById('addSheet').value.trim();
+      let column_data = [];
+      try {
+        const raw = document.getElementById('addColumns').value.trim();
+        column_data = raw ? JSON.parse(raw.startsWith('[') ? raw : '["' + raw.replace(/"/g, '\\"').replace(/\n/g, '","') + '"]') : [];
+      } catch { column_data = document.getElementById('addColumns').value.split('\n').map(s => s.trim()).filter(Boolean); }
+      const formula_text = document.getElementById('addFormula').value.trim() || null;
+      const res = await fetch(API + '/api/row', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sheet_name: sheet, column_data, formula_text }) });
+      if (!res.ok) { alert('提交失败'); return; }
+      alert('已添加');
+      document.getElementById('addColumns').value = '';
+      document.getElementById('addFormula').value = '';
+      showView('table');
+      if (sheet === currentSheet) loadSheetPage();
+    });
+
+    loadSheets();
+  </script>
+</body>
+</html>
